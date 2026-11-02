@@ -1,0 +1,20 @@
+{
+  "name": "pos-monitoring-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Express API that receives POS agent telemetry, keeps a live window in memory and captures incident snapshots",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
+    "simulate": "node scripts/simulate.mjs"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "mongodb": "7.8.0"
+  }
+}
