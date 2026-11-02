@@ -48,6 +48,20 @@ The snapshot freezes the device's state at that moment, plus the charts and even
 Triggers on the same device within `INCIDENT_MERGE_SECONDS` join one incident.
 An incident is marked resolved when every condition it raised has cleared.
 
+### Repeated errors are stored once
+
+The same error raised again is not stored or listed again. Instead, the existing record's count goes up, and it moves to the top with the latest time and text.
+
+Two errors count as the same when they come from the same device and say the same thing once numbers, GUIDs, hex codes and timestamps are ignored. For example, `SQL timeout after 5003 ms (order 1182)` and `SQL timeout after 5011 ms (order 1190)` are the same error.
+
+| Where | What happens to a repeat |
+| --- | --- |
+| Live alerts and device events | One entry with `×N` and the time it was first seen |
+| Incidents | Joins the incident that already holds the error, if that incident was updated within `DUPLICATE_WINDOW_HOURS` (24 by default). The trigger shows `×N` and the last time it happened. |
+| MongoDB `events` | One document per device and error, with `occurrences`, `firstTs` and the latest `ts` |
+
+Routine events, such as metrics and heartbeats, are not affected. A re-sent upload with the same event id is still recognized by its id and acknowledged without being counted.
+
 ## Storage modes
 
 | Mode | Set up with | What happens |

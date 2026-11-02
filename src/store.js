@@ -10,6 +10,7 @@ import {
   triggerFromEvent,
 } from './incidents.js';
 import { RANK, isNotable } from './rules.js';
+import { signatureOf } from './dedupe.js';
 
 export { RANK };
 
@@ -24,6 +25,9 @@ export { RANK };
  * offline device stays visible.
  *
  * Live subscribers (Server-Sent Events) get one coalesced update per second with only what changed.
+ *
+ * Repeats of the same error (see dedupe.js) are folded into the existing entry: its count goes up and
+ * it moves to the top with the latest time and text, so lists never show the same error twice.
  */
 
 // history tuple layout
@@ -48,6 +52,7 @@ function createState() {
       startedAt: Date.now(),
       received: 0,
       duplicates: 0,
+      folded: 0,
       rejected: 0,
       expired: 0,
       buckets: new Array(12).fill(0), // 12 x 5 s = events in the last minute
@@ -190,14 +195,43 @@ function addEvent(d, ev, t) {
   const item = describe(ev, t, d);
   const notable = isNotable(ev);
 
-  if (t >= windowStart()) insertSorted(d.events, item, config.eventsPerDevice, (e) => e.t);
-  else if (!notable) state.stats.expired++;
+  if (t >= windowStart()) {
+    if (!(notable && fold(d.events, { ...item }))) insertSorted(d.events, { ...item }, config.eventsPerDevice, (e) => e.t);
+  } else if (!notable) {
+    state.stats.expired++;
+  }
 
   if (notable) {
-    insertSorted(state.alerts, item, config.alertsMax, (e) => e.t);
-    state.pendingAlerts.push(item);
+    const existing = fold(state.alerts, { ...item }, (a) => a.deviceId === d.deviceId);
+    if (existing) state.stats.folded++;
+    else insertSorted(state.alerts, { ...item }, config.alertsMax, (e) => e.t);
+    state.pendingAlerts.push(existing ?? item);
     triggerFromEvent(state, d, item, () => captureContext(d));
   }
+}
+
+/**
+ * Folds a repeat of an error already in the list into that entry and moves it to its new time.
+ * Returns the updated entry, or null when the error is new.
+ */
+function fold(list, item, sameOwner = () => true) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i];
+    if (e.sig !== item.sig || !sameOwner(e)) continue;
+    e.occurrences = (e.occurrences ?? 1) + (item.occurrences ?? 1);
+    e.firstAt = Math.min(e.firstAt ?? e.t, item.firstAt);
+    if (item.t >= e.t) {
+      e.t = item.t;
+      e.title = item.title;
+      e.detail = item.detail;
+      e.lastId = item.id;
+    }
+    if ((RANK[item.priority] ?? 1) > (RANK[e.priority] ?? 1)) e.priority = item.priority;
+    list.splice(i, 1);
+    insertSorted(list, e, Infinity, (x) => x.t);
+    return e;
+  }
+  return null;
 }
 
 function evaluateConditions(d, t) {
@@ -264,6 +298,8 @@ function describe(ev, t, d) {
     title,
     detail,
     occurrences: ev.occurrences > 1 ? ev.occurrences : undefined,
+    firstAt: t,
+    sig: signatureOf(ev),
     deviceId: d.deviceId,
     storeId: d.storeId,
   };
@@ -486,6 +522,7 @@ export function publicStats() {
     devices: state.devices.size,
     received: s.received,
     duplicates: s.duplicates,
+    folded: s.folded ?? 0,
     rejected: s.rejected,
     expired: s.expired,
     incidents: state.incidents.length,

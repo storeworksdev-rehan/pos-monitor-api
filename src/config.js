@@ -31,6 +31,8 @@ export const config = Object.freeze({
   incidentRetentionDays: int(process.env.INCIDENT_RETENTION_DAYS, 30),
   // Triggers on the same device within this many seconds are merged into one incident.
   incidentMergeSeconds: int(process.env.INCIDENT_MERGE_SECONDS, 120),
+  // The same error on the same device within this many hours joins the earlier incident instead of opening a new one.
+  duplicateWindowHours: int(process.env.DUPLICATE_WINDOW_HOURS, 24),
   // Incident snapshots held in memory (MongoDB keeps all of them for the retention period).
   incidentsMax: int(process.env.INCIDENTS_MAX, 500),
   incidentTriggersMax: 50,

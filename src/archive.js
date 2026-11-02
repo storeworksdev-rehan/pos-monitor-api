@@ -3,12 +3,15 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { config } from './config.js';
 import { isNotable } from './rules.js';
+import { fingerprint, signatureOf } from './dedupe.js';
 
 /**
  * Optional MongoDB archive.
  *
  * - No MONGODB_URI: disabled; the driver is never even loaded.
- * - events: inserted with _id = eventId, so resends are ignored. Each document gets an
+ * - events: routine events are inserted with _id = eventId, so resends are ignored. Failures, errors
+ *   and warnings are folded: one document per device and error signature (see dedupe.js), whose
+ *   `occurrences` count, latest fields and `ts` are updated on every repeat. Each document gets an
  *   expiresAt and a TTL index deletes it: routine data after DATA_WINDOW_MINUTES,
  *   failures/errors/warnings after INCIDENT_RETENTION_DAYS.
  * - incidents: incident snapshots, upserted, expiring INCIDENT_RETENTION_DAYS after their last update.
@@ -140,7 +143,9 @@ async function insertDocs(docs) {
   if (docs.length === 0) return;
   const db = await getDb();
   try {
-    await db.collection('events').insertMany(docs, { ordered: false });
+    await db.collection('events').bulkWrite(docs.map((doc) => (doc.sig ? foldOp(doc) : { insertOne: { document: doc } })), {
+      ordered: false,
+    });
   } catch (err) {
     if (!isOnlyDuplicates(err)) throw err;
   }
@@ -161,6 +166,24 @@ function toDoc(ev, receivedAt) {
     ts: new Date(Date.parse(ev.timestamp) || receivedAt),
     receivedAt: new Date(receivedAt),
     expiresAt: new Date(expiresAt(ev, receivedAt)),
+    ...(isNotable(ev) ? { sig: signatureOf(ev) } : {}),
+  };
+}
+
+/** Upsert that adds a repeat of an error to its existing document instead of storing a new one. */
+function foldOp(doc) {
+  const { _id, occurrences, eventId, ts, expiresAt: expires, ...latest } = doc;
+  return {
+    updateOne: {
+      filter: { _id: fingerprint(doc.deviceId, doc.sig) },
+      update: {
+        $setOnInsert: { firstTs: ts, firstEventId: eventId },
+        $set: { ...latest, eventId },
+        $max: { ts, expiresAt: expires },
+        $inc: { occurrences: occurrences > 1 ? occurrences : 1 },
+      },
+      upsert: true,
+    },
   };
 }
 

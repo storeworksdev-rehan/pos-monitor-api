@@ -11,6 +11,8 @@ import { config } from './config.js';
  * of the live window. Snapshots are kept for INCIDENT_RETENTION_DAYS.
  *
  * Triggers on the same device within INCIDENT_MERGE_SECONDS join the same incident.
+ * The same error again (same signature, see dedupe.js) within DUPLICATE_WINDOW_HOURS joins the incident
+ * that already has it, and only raises that trigger's count; no new incident or trigger is stored.
  * A condition-based incident is marked resolved once every condition it raised has cleared.
  */
 
@@ -35,6 +37,7 @@ export function incidentSummary(inc) {
     updatedAt: inc.updatedAt,
     resolvedAt: inc.resolvedAt,
     triggerCount: inc.triggerCount,
+    repeats: inc.repeats ?? 0,
     lastTrigger: last && last !== inc.triggers[0] ? last.title : null,
   };
 }
@@ -49,6 +52,8 @@ export function triggerFromEvent(state, d, item, capture) {
     detail: item.detail || null,
     priority: item.priority,
     eventId: item.id,
+    sig: item.sig,
+    count: item.occurrences ?? 1,
   }, capture);
 }
 
@@ -86,8 +91,10 @@ function addTrigger(state, d, trigger, capture) {
   const mergeMs = config.incidentMergeSeconds * 1000;
   let inc = d.openIncidentId ? state.incidentIndex.get(d.openIncidentId) : null;
   const canMerge = inc && trigger.t <= inc.updatedAt + mergeMs && trigger.t >= inc.openedAt - mergeMs;
+  if (!canMerge) inc = trigger.sig ? findDuplicateIncident(state, d.deviceId, trigger) : null;
+  if (inc) d.openIncidentId = inc.id;
 
-  if (!canMerge) {
+  if (!inc) {
     const now = Date.now();
     inc = {
       id: randomUUID(),
@@ -114,7 +121,15 @@ function addTrigger(state, d, trigger, capture) {
     }
   }
 
-  pushTrigger(inc, trigger);
+  const same = trigger.sig ? inc.triggers.findLast((x) => x.sig === trigger.sig) : null;
+  if (same) {
+    same.count = (same.count ?? 1) + trigger.count;
+    same.lastAt = Math.max(same.lastAt ?? same.t, trigger.t);
+    if (trigger.t >= same.lastAt) same.detail = trigger.detail;
+    inc.repeats = (inc.repeats ?? 0) + trigger.count;
+  } else {
+    pushTrigger(inc, trigger);
+  }
   inc.updatedAt = Math.max(inc.updatedAt, trigger.t);
   inc.openedAt = Math.min(inc.openedAt, trigger.t);
   if (SEVERITY[trigger.severity] > SEVERITY[inc.severity]) {
@@ -124,6 +139,19 @@ function addTrigger(state, d, trigger, capture) {
   inc.resolvedAt = null;
   markChanged(state, inc);
   return inc;
+}
+
+/** The device's most recent incident that already holds this error, if updated within the duplicate window. */
+function findDuplicateIncident(state, deviceId, trigger) {
+  const since = trigger.t - config.duplicateWindowHours * 3_600_000;
+  let best = null;
+  for (let i = state.incidents.length - 1; i >= 0; i--) {
+    const inc = state.incidents[i];
+    if (inc.deviceId !== deviceId || inc.updatedAt < since) continue;
+    if (best && inc.updatedAt <= best.updatedAt) continue;
+    if (inc.triggers.some((x) => x.sig === trigger.sig)) best = inc;
+  }
+  return best;
 }
 
 function pushTrigger(inc, trigger) {
