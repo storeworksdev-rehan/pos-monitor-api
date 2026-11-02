@@ -1,0 +1,88 @@
+# Builds this Express API and deploys it to an Azure Web App (Linux, Node 22).
+# This folder (server/) is the repository root.
+#
+# One-time setup (see README.md, "Deploy to Azure Web App"):
+#   repository variable  AZURE_WEBAPP_NAME              the Web App's name
+#   repository secret    AZURE_WEBAPP_PUBLISH_PROFILE   the Web App's publish profile XML
+name: Deploy server to Azure Web App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deployments to the same app at once.
+concurrency:
+  group: azure-webapp
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+
+      - name: Smoke test (start the API and call /api/health)
+        env:
+          PORT: '4000'
+          DATA_DIR: ${{ runner.temp }}/smoke-data
+        run: |
+          node src/index.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          pid=$!
+          if curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/api/health; then
+            echo
+            kill "$pid"
+          else
+            cat "$RUNNER_TEMP/server.log"
+            kill "$pid" || true
+            exit 1
+          fi
+
+      # node_modules ships in the package, so the Web App does not need to build anything.
+      - name: Package
+        run: zip -qr "$RUNNER_TEMP/server.zip" package.json package-lock.json src node_modules
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server
+          path: ${{ runner.temp }}/server.zip
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: server
+
+      - name: Deploy to Azure Web App
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: server.zip
+
+      - name: Check the deployed API
+        run: |
+          curl -fsS --retry 12 --retry-all-errors --retry-delay 10 \
+            "${{ steps.deploy.outputs.webapp-url }}/api/health"

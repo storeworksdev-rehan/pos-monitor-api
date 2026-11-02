@@ -106,8 +106,8 @@ Set `TELEMETRY_API_KEYS` in production. The read endpoints have no login, so put
 
 ## Deploy to Azure Web App
 
-The workflow `.github/workflows/server-azure-webapp.yml` at the repository root deploys this folder only.
-It runs on every push to `main` that changes `server/`, or manually from the Actions tab. It installs production dependencies, starts the API once and checks `/api/health`, then zips `src`, `node_modules` and the package files and deploys them. After the deploy it calls `/api/health` on the live site.
+The workflow `.github/workflows/azure-webapp.yml` deploys this folder. It expects `server/` to be the repository root.
+It runs on every push to `main`, or manually from the Actions tab. It installs production dependencies, starts the API once and checks `/api/health`, then zips `src`, `node_modules` and the package files and deploys them. After the deploy it calls `/api/health` on the live site.
 
 One-time setup:
 
@@ -136,5 +136,6 @@ Point agents at the site over HTTPS, with no port:
 ```
 
 Set the dashboard's `NEXT_PUBLIC_API_URL` to the same address and rebuild it.
-#   p o s - m o n i t o r - a p i  
+#   p o s - m o n i t o r - a p i 
+ 
  
