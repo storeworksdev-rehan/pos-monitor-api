@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { archiveEnabled, saveIncidents, startArchive } from './archive.js';
-import { loadSnapshot, saveSnapshot } from './snapshot.js';
+import { loadSnapshot, saveSnapshot, saveSnapshotAsync } from './snapshot.js';
 import { state, sweep } from './store.js';
 
 /** Idempotent one-time startup: restore snapshot, start background timers. */
@@ -25,7 +25,7 @@ export function ensureBooted() {
 
   const save = safely('snapshot', () => {
     state.urgentSave = false;
-    saveSnapshot(state);
+    return saveSnapshotAsync(state);
   });
   setInterval(save, config.snapshotSeconds * 1000).unref?.();
   // New or changed incident snapshots reach disk within 5 s.

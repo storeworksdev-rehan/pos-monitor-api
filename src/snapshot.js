@@ -42,15 +42,22 @@ export function loadSnapshot(state) {
   }
 }
 
+// Event ids saved per device: enough to recognize a resent upload (the agent sends at most 200
+// events per batch) without making the file huge. Memory keeps more (config.dedupePerDevice).
+const SAVED_IDS = 200;
+// Serialize this many devices or incidents, then let requests run, so a save never stalls the API.
+const CHUNK = 100;
+
+const toSaved = ({ seen, ...rest }) => ({ ...rest, seenIds: seen.ids.slice(-SAVED_IDS) });
+
+/** Synchronous save, for shutdown only. */
 export function saveSnapshot(state, { force = false } = {}) {
   if (!state.dirty && !force) return;
   state.dirty = false;
-  const devices = [];
-  for (const { seen, ...rest } of state.devices.values()) devices.push({ ...rest, seenIds: seen.ids });
   const json = JSON.stringify({
     version: VERSION,
     savedAt: Date.now(),
-    devices,
+    devices: [...state.devices.values()].map(toSaved),
     alerts: state.alerts,
     incidents: state.incidents,
   });
@@ -59,3 +66,42 @@ export function saveSnapshot(state, { force = false } = {}) {
   fs.writeFileSync(tmp, json);
   fs.renameSync(tmp, file());
 }
+
+let saving = false;
+
+/**
+ * Routine save. Serializes in chunks and yields between them, then writes asynchronously,
+ * so uploads and dashboards keep being served while a large fleet is saved.
+ */
+export async function saveSnapshotAsync(state) {
+  if (saving || !state.dirty) return;
+  saving = true;
+  state.dirty = false;
+  try {
+    const devices = [...state.devices.values()];
+    const incidents = state.incidents.slice();
+    const parts = [`{"version":${VERSION},"savedAt":${Date.now()},"devices":[`];
+    for (let i = 0; i < devices.length; i++) {
+      parts.push(`${i ? ',' : ''}${JSON.stringify(toSaved(devices[i]))}`);
+      if (i % CHUNK === CHUNK - 1) await yieldToRequests();
+    }
+    parts.push(`],"alerts":${JSON.stringify(state.alerts)},"incidents":[`);
+    for (let i = 0; i < incidents.length; i++) {
+      parts.push(`${i ? ',' : ''}${JSON.stringify(incidents[i])}`);
+      if (i % CHUNK === CHUNK - 1) await yieldToRequests();
+    }
+    parts.push(']}');
+
+    await fs.promises.mkdir(config.dataDir, { recursive: true });
+    const tmp = `${file()}.tmp`;
+    await fs.promises.writeFile(tmp, parts.join(''));
+    await fs.promises.rename(tmp, file());
+  } catch (err) {
+    state.dirty = true; // try again next time
+    throw err;
+  } finally {
+    saving = false;
+  }
+}
+
+const yieldToRequests = () => new Promise((resolve) => setImmediate(resolve));
