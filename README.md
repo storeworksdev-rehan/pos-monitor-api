@@ -73,7 +73,7 @@ An incident is marked resolved when every condition it raised has cleared.
 
 ## POS log files
 
-Logs stay on each POS under `C:\XeniaRetail`. A request travels through the server to the agent and back:
+Logs stay on each POS under `C:\XeniaRetail\Logs`. A request travels through the server to the agent and back:
 
 ```
 web ── GET /api/devices/POS-01/files?path=C:\XeniaRetail\Logs\BackOffice ──► server ──► agent (waiting long-poll)
@@ -96,7 +96,7 @@ Large files are paged:
 - `&offset=N` returns the chunk starting at byte N.
 - `&tail=false` starts from the top of the file.
 
-Paths can be absolute, such as `C:\XeniaRetail\Logs\BackOffice`, or relative to the root, such as `Logs\BackOffice`.
+Paths can be absolute, such as `C:\XeniaRetail\Logs\BackOffice`, or relative to the root, such as `BackOffice`.
 
 The server checks every path and refuses parent-folder steps, other drives, network paths, wildcards and alternate data streams. The agent repeats every check and also refuses links and junctions.
 The agent opens only the extensions in `FileAccess:AllowedExtensions`, but lists all files. It masks card numbers, passwords, tokens and emails in the content, and it logs every request on the POS.

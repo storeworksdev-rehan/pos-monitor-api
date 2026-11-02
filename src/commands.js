@@ -3,7 +3,7 @@ import path from 'node:path';
 import { config } from './config.js';
 
 /**
- * Relay for on-demand requests to agents (e.g. browsing C:\XeniaRetail on a POS).
+ * Relay for on-demand requests to agents (e.g. browsing C:\XeniaRetail\Logs on a POS).
  *
  * Stores are behind firewalls, so the server never connects to a POS. Each agent keeps one
  * long-poll open (GET /api/agent/commands); a dashboard request is queued for that device and

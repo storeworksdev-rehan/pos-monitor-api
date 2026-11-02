@@ -62,7 +62,7 @@ export const config = Object.freeze({
   // ---- remote file access (POS log browsing) -----------------------------------
   // Folder on the POS that may be browsed. The agent enforces its own lock (FileAccess:RootPath);
   // this is checked again here before a request is relayed.
-  fileRoot: process.env.FILE_ROOT?.trim() || String.raw`C:\XeniaRetail`,
+  fileRoot: process.env.FILE_ROOT?.trim() || String.raw`C:\XeniaRetail\Logs`,
   fileRequestTimeoutSeconds: int(process.env.FILE_REQUEST_TIMEOUT_SECONDS, 30),
 
   // Live updates are coalesced into one message per interval, however many batches arrive.

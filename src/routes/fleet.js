@@ -68,7 +68,7 @@ const AGENT_ERROR_STATUS = { 'not-found': 404, denied: 403, disabled: 403, unsup
  *   path is a file   -> { kind: "file", content, size, offset, length, hasMoreBefore, hasMoreAfter, ... }
  *                       (large files: last 1 MB by default; &offset=N pages, &tail=false starts at the top)
  *   neither          -> 404
- * Only paths under FILE_ROOT (default C:\XeniaRetail) are accepted; the agent enforces the same lock.
+ * Only paths under FILE_ROOT (default C:\XeniaRetail\Logs) are accepted; the agent enforces the same lock.
  */
 router.get('/devices/:deviceId/files', async (req, res) => {
   const { deviceId } = req.params;
