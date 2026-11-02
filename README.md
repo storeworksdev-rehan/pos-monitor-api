@@ -81,9 +81,26 @@ Routine events, such as metrics and heartbeats, are not affected. A re-sent uplo
 | `GET /api/devices` and `GET /api/devices/:deviceId` | Dashboard | Device summaries, and the detail for one device. |
 | `GET /api/incidents` and `GET /api/incidents/:id` | Dashboard | Incident snapshots. Add `?source=archive` to read from MongoDB. |
 | `GET /api/events` | Dashboard | Recent failures, errors and warnings. Add `?source=archive` to read from MongoDB. |
-
 | `GET /api/devices/:deviceId/files?path=` | Dashboard | Browse POS log files under `FILE_ROOT`. A folder returns its listing with full paths, a file returns its content, and anything else returns 404. |
 | `GET /api/agent/commands`, `POST /api/agent/commands/:id/result` | Agent | Request channel for file browsing. The agent long-polls, so no inbound port is opened at the store. |
+| `DELETE /api/stores/:storeId` | Admin | Remove a store and all its registers. See [Removing a store or register](#removing-a-store-or-register). |
+| `DELETE /api/devices/:deviceId` | Admin | Remove one register. |
+
+## Removing a store or register
+
+This is available through the API only; the dashboard has no remove button.
+Removal deletes the registers' live state, alerts and incident snapshots. With MongoDB, their stored events and incidents are deleted too.
+Open dashboards drop them straight away.
+
+```bash
+curl -X DELETE -H "X-Admin-Key: <key>" https://<server>/api/stores/00001        # the store and every register in it
+curl -X DELETE -H "X-Admin-Key: <key>" https://<server>/api/devices/POS-00001-REG01-PC   # one register
+```
+
+- The reply lists what was removed: `{ removed: { devices, alerts, incidents }, archive }`. An unknown store or register returns 404.
+- Registers with no store ID are grouped as `Unassigned`, which is also the store ID to use for them.
+- `X-Admin-Key` must be one of `ADMIN_API_KEYS`. When that setting is empty, anyone who can reach the API can remove stores, so set it in production.
+- **Uninstall the agent first** (`./pos-agent.sh uninstall` on each register). A register whose agent is still running reappears at its next upload, which is at most a minute later.
 
 ## POS log files
 
@@ -139,6 +156,7 @@ One-time setup:
 | `DATA_DIR` | `/home/data`. `/home` survives restarts and redeploys; the app folder may not. |
 | `CORS_ORIGINS` | The dashboard's URL, such as `https://pos-dashboard.azurewebsites.net` |
 | `TELEMETRY_API_KEYS` | The keys the agents use |
+| `ADMIN_API_KEYS` | The key for removing stores and registers |
 | `MONGODB_URI` | Optional, such as an Azure Cosmos DB for MongoDB or Atlas connection string |
 
 Keep the Web App at **one instance**. Live data, incident state and the file-request relay are held in the process, so a second instance would see a different set of devices.

@@ -20,6 +20,11 @@ export const config = Object.freeze({
     .split(',')
     .map((k) => k.trim())
     .filter(Boolean),
+  // Keys for admin endpoints (removing stores and devices), sent as X-Admin-Key.
+  adminApiKeys: (process.env.ADMIN_API_KEYS ?? '')
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean),
 
   // ---- retention -------------------------------------------------------------
   // Routine data (metrics history, routine events) is kept only for this rolling window,

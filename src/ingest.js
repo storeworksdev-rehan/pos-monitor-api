@@ -14,6 +14,16 @@ export function isAuthorized(key) {
   return keyDigests.some((k) => timingSafeEqual(k, d));
 }
 
+const adminDigests = config.adminApiKeys.map(digest);
+
+/** @param {string | undefined} key value of the X-Admin-Key header */
+export function isAdmin(key) {
+  if (adminDigests.length === 0) return true;
+  if (!key) return false;
+  const d = digest(key);
+  return adminDigests.some((k) => timingSafeEqual(k, d));
+}
+
 const ID_PATTERN = /^[0-9A-Za-z-]{8,64}$/;
 
 function validate(ev, batchDeviceId) {

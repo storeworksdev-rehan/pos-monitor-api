@@ -1,12 +1,14 @@
 import express from 'express';
-import { archiveEnabled, findIncident, queryArchive, queryIncidents } from '../archive.js';
+import { archiveEnabled, findIncident, purgeDevices, queryArchive, queryIncidents } from '../archive.js';
 import { resolveUnderRoot, sendCommand } from '../commands.js';
 import { incidentStatus } from '../incidents.js';
+import { isAdmin } from '../ingest.js';
 import {
   deviceDetail,
   getIncident,
   listAlerts,
   listIncidents,
+  removeDevices,
   snapshotPayload,
   state,
   subscribe,
@@ -58,6 +60,45 @@ router.get('/devices/:deviceId', (req, res) => {
   const detail = deviceDetail(req.params.deviceId);
   if (!detail) return res.status(404).json({ error: 'Unknown device' });
   res.json(detail);
+});
+
+// ---------------------------------------------------------------- removal (API only)
+
+/** Removing needs X-Admin-Key when ADMIN_API_KEYS is set. */
+function requireAdmin(req, res, next) {
+  if (!isAdmin(req.get('x-admin-key'))) return res.status(403).json({ error: 'Invalid or missing X-Admin-Key' });
+  next();
+}
+
+async function remove(res, deviceIds) {
+  const removed = removeDevices(deviceIds);
+  let archive = null;
+  try {
+    archive = await purgeDevices(removed.devices);
+  } catch (err) {
+    archive = { error: `MongoDB not cleaned: ${err.message}` };
+  }
+  res.json({
+    removed,
+    archive,
+    note: 'A device whose agent is still installed and running appears again at its next upload. Uninstall the agent first.',
+  });
+}
+
+/** DELETE /api/devices/:deviceId - forget one register: live state, alerts, incidents (and its MongoDB data). */
+router.delete('/devices/:deviceId', requireAdmin, async (req, res) => {
+  if (!state.devices.has(req.params.deviceId)) return res.status(404).json({ error: 'Unknown device' });
+  await remove(res, [req.params.deviceId]);
+});
+
+/** DELETE /api/stores/:storeId - forget every register of a store. Devices without a store are "Unassigned". */
+router.delete('/stores/:storeId', requireAdmin, async (req, res) => {
+  const ids = [];
+  for (const d of state.devices.values()) {
+    if ((d.storeId ?? 'Unassigned') === req.params.storeId) ids.push(d.deviceId);
+  }
+  if (ids.length === 0) return res.status(404).json({ error: 'Unknown store' });
+  await remove(res, ids);
 });
 
 const AGENT_ERROR_STATUS = { 'not-found': 404, denied: 403, disabled: 403, unsupported: 415, 'io-error': 502 };

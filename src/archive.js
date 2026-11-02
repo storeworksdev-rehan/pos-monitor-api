@@ -224,6 +224,18 @@ export async function queryIncidents({ deviceId, severity, limit = 100, before }
     .toArray();
 }
 
+/** Deletes every stored event and incident of these devices. Throws if MongoDB is unavailable. */
+export async function purgeDevices(deviceIds) {
+  if (!config.mongoUri || deviceIds.length === 0) return null;
+  const db = await getDb();
+  const filter = { deviceId: { $in: deviceIds } };
+  const [events, incidents] = await Promise.all([
+    db.collection('events').deleteMany(filter),
+    db.collection('incidents').deleteMany(filter),
+  ]);
+  return { events: events.deletedCount, incidents: incidents.deletedCount };
+}
+
 export async function findIncident(id) {
   const db = await getDb();
   return db.collection('incidents').findOne({ _id: id }, { projection: { _id: 0 } });

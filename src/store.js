@@ -384,6 +384,40 @@ export function sweep(now = Date.now()) {
   }
 }
 
+// ---------------------------------------------------------------- removal
+
+/**
+ * Forgets devices and everything recorded about them: live state, alerts and incident snapshots.
+ * Open dashboards get a "removed" event. A device whose agent still uploads appears again.
+ */
+export function removeDevices(deviceIds) {
+  const ids = new Set(deviceIds.filter((id) => state.devices.has(id)));
+  if (ids.size === 0) return { devices: [], alerts: 0, incidents: 0 };
+
+  for (const id of ids) {
+    state.devices.delete(id);
+    state.changed.delete(id);
+  }
+  const alertsBefore = state.alerts.length;
+  state.alerts = state.alerts.filter((a) => !ids.has(a.deviceId));
+  state.pendingAlerts = state.pendingAlerts.filter((a) => !ids.has(a.deviceId));
+
+  const incidentIds = [];
+  state.incidents = state.incidents.filter((inc) => {
+    if (!ids.has(inc.deviceId)) return true;
+    incidentIds.push(inc.id);
+    state.incidentIndex.delete(inc.id);
+    state.changedIncidents.delete(inc.id);
+    state.unpersistedIncidents.delete(inc.id);
+    return false;
+  });
+
+  state.dirty = true;
+  state.urgentSave = true;
+  broadcast(`event: removed\ndata: ${JSON.stringify({ deviceIds: [...ids], incidentIds })}\n\n`);
+  return { devices: [...ids], alerts: alertsBefore - state.alerts.length, incidents: incidentIds.length };
+}
+
 // ---------------------------------------------------------------- read models
 
 const ISSUE_LABEL = {

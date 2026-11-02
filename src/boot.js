@@ -59,6 +59,9 @@ export function ensureBooted() {
   if (config.apiKeys.length === 0) {
     console.warn('[auth] TELEMETRY_API_KEYS is empty: any agent can post telemetry (development mode)');
   }
+  if (config.adminApiKeys.length === 0) {
+    console.warn('[auth] ADMIN_API_KEYS is empty: anyone who can reach the API can remove stores and devices (development mode)');
+  }
   console.info(
     `[boot] storage: ${config.mongoUri ? `MongoDB (${config.mongoDb}) + live memory` : 'live memory + snapshot (no database)'}; ` +
       `live window ${config.dataWindowMinutes} min; incident snapshots kept ${config.incidentRetentionDays} days`,
