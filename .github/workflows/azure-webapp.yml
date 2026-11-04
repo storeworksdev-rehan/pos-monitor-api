@@ -1,5 +1,5 @@
 # Builds this Express API and deploys it to an Azure Web App (Linux, Node 22).
-# This folder (server/) is the repository root.
+# Only changes under server/ (or to this file) trigger a deployment.
 #
 # One-time setup (see README.md, "Deploy to Azure Web App"):
 #   repository variable  AZURE_WEBAPP_NAME              the Web App's name
@@ -9,6 +9,9 @@ name: Deploy server to Azure Web App
 on:
   push:
     branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/azure-webapp.yml'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +28,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +38,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: server/package-lock.json
 
       - name: Install production dependencies
         run: npm ci --omit=dev

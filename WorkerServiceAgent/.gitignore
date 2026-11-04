@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+publish/
+*.zip
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.rsuser
+
+# Local runtime data (SQLite queue, installation id)
+*.db
+*.db-shm
+*.db-wal
+installation-id
+
+# Personal notes
+.ai-responses-manually-added

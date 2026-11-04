@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --animate-flash: flash 1.4s ease-out both;
+  --animate-rise: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-in: slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-drawer: drawer 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade: fade 0.25s ease-out both;
+
+  @keyframes flash {
+    0% {
+      box-shadow: inset 0 0 0 1px rgb(103 232 249 / 0.65), 0 0 28px -4px rgb(34 211 238 / 0.45);
+    }
+    100% {
+      box-shadow: inset 0 0 0 1px rgb(103 232 249 / 0), 0 0 0 0 rgb(34 211 238 / 0);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes drawer {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #05070d;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.25) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
